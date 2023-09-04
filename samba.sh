@@ -102,6 +102,17 @@ recycle() { local file=/etc/samba/smb.conf
     sed -i '/recycle:/d; /vfs objects/s/ recycle / /' $file
 }
 
+### dfree: use custom dfree
+# Arguments:
+#   none)
+# Return: result
+dfree() { local file=/etc/samba/dfree.sh
+    echo "#!/bin/sh" > $file
+    echo "$@" >> $file
+    chmod +x $file
+    global "dfree command = $file"
+}
+
 ### share: Add share
 # Arguments:
 #   share) share name
@@ -241,10 +252,11 @@ The 'command' (if provided and valid) will be run instead of samba
 [[ "${USERID:-""}" =~ ^[0-9]+$ ]] && usermod -u $USERID -o smbuser
 [[ "${GROUPID:-""}" =~ ^[0-9]+$ ]] && groupmod -g $GROUPID -o smb
 
-while getopts ":hc:G:g:i:nprs:Su:Ww:I:" opt; do
+while getopts ":hc:d:G:g:i:nprs:Su:Ww:I:" opt; do
     case "$opt" in
         h) usage ;;
         c) charmap "$OPTARG" ;;
+        d) dfree "$OPTARG" ;;
         G) eval generic $(sed 's/^/"/; s/$/"/; s/;/" "/g' <<< $OPTARG) ;;
         g) global "$OPTARG" ;;
         i) import "$OPTARG" ;;
@@ -279,6 +291,7 @@ done < <(env | awk '/^SHARE[0-9=_]/ {sub (/^[^=]*=/, "", $0); print}')
 while read i; do
     eval user $(sed 's/^/"/; s/$/"/; s/;/" "/g' <<< $i)
 done < <(env | awk '/^USER[0-9=_]/ {sub (/^[^=]*=/, "", $0); print}')
+[[ "${DFREE:-""}" ]] && dfree $DFREE
 [[ "${WORKGROUP:-""}" ]] && workgroup "$WORKGROUP"
 [[ "${WIDELINKS:-""}" ]] && widelinks
 [[ "${INCLUDE:-""}" ]] && include "$INCLUDE"
@@ -293,5 +306,5 @@ elif ps -ef | egrep -v grep | grep -q smbd; then
     echo "Service already running, please restart container to apply changes"
 else
     [[ ${NMBD:-""} ]] && ionice -c 3 nmbd -D
-    exec ionice -c 3 smbd -FS --no-process-group </dev/null
+    exec ionice -c 3 smbd -F --no-process-group </dev/null
 fi
